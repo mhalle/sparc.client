@@ -24,13 +24,12 @@ jobs:
           require: 'admin'
   check:
     needs: verify
-    if: false
     uses: ./.github/workflows/CI.yml
     secrets:
       codecov_token: ${{ secrets.CODECOV_TOKEN }}
 
   publish:
-    needs: verify
+    needs: check
     runs-on: ubuntu-latest
 
     # Specifying a GitHub environment for PyPI release is optional, but strongly encouraged
