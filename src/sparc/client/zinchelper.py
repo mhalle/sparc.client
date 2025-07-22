@@ -3,8 +3,7 @@ import os
 import posixpath
 import re
 import tempfile
-from collections import namedtuple
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 from cmlibs.exporter.stl import ArgonSceneExporter as STLExporter
 from cmlibs.exporter.vtk import ArgonSceneExporter as VTKExporter
@@ -276,7 +275,8 @@ class ZincHelper:
 
         # Generate the analysis result message based on the suitability of the groups
         suited_text = f"The data file {input_data_file_name} is suited for mapping to the given organ."
-        not_in_text = f"However, the mapping tool does not have the following groups defined by default; {', '.join(not_in_scaffoldmaker)}."
+        not_in_text = (f"However, the mapping tool does not have the following groups defined by default; "
+                       f"{', '.join(not_in_scaffoldmaker)}.")
 
         return f"{suited_text} {not_in_text}" if not_in_scaffoldmaker else suited_text
 
@@ -412,7 +412,8 @@ class ZincHelper:
         return data_file_uris
 
     @staticmethod
-    def print_image_from_visualisation(printed_image_location, printed_image_prefix, width, height, visualisation_file_info, model_file_info):
+    def print_image_from_visualisation(printed_image_location, printed_image_prefix, width, height,
+                                       visualisation_file_info, model_file_info):
         p = create_pennsieve_service()
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -458,7 +459,7 @@ def _download_files(p, temp_dir, file_info):
         target_location = os.path.join(temp_dir, model_parsed_uri.path.lstrip('/'))
         downloaded_files.append(target_location)
         os.makedirs(os.path.dirname(target_location), exist_ok=True)
-        response = p.download_file(info, target_location)
+        p.download_file(info, target_location)
 
     return downloaded_files
 
