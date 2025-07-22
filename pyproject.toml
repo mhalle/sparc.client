@@ -77,7 +77,7 @@ where = ["src", "config"]
 "*" = ["*.ini", "*.txt"]
 
 [build-system]
-requires = ["setuptools>=64", "setuptools-scm>=8.0", "pennsieve2", "cmlibs.zinc", "cmlibs.utils", "scaffoldmaker", "mbfxml2ex"]
+requires = ["setuptools>=64", "setuptools-scm>=8.0", "pennsieve2", "cmlibs.zinc", "cmlibs.utils", "scaffoldmaker", "mbfxml2ex", "cmlibs.exporter[thumbnail_software]"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
