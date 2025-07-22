@@ -50,6 +50,8 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Generate coverage report
+      env:
+        PYOPENGL_PLATFORM: osmesa
       run: |
         PYTHONPATH=src
         pytest --cov=./src tests/ --cov-report term --cov-report=xml:coverage.xml
