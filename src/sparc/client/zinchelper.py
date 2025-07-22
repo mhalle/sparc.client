@@ -1,9 +1,14 @@
 import json
 import os
+import posixpath
 import re
+import tempfile
+from collections import namedtuple
+from urllib.parse import urljoin, urlparse
 
 from cmlibs.exporter.stl import ArgonSceneExporter as STLExporter
 from cmlibs.exporter.vtk import ArgonSceneExporter as VTKExporter
+from cmlibs.exporter.image import ArgonSceneExporter as ImageExporter
 from cmlibs.utils.zinc.field import field_exists, get_group_list
 from cmlibs.zinc.context import Context
 from cmlibs.zinc.result import RESULT_OK
@@ -26,6 +31,12 @@ from scaffoldmaker.annotation.stomach_terms import get_stomach_term
 from scaffoldmaker.utils.exportvtk import ExportVtk
 
 from sparc.client.services.pennsieve import PennsieveService
+
+
+def create_pennsieve_service():
+    pennsieve_config = {"pennsieve_profile_name": "zinc_helper"}
+    p = PennsieveService(config=pennsieve_config, connect=False)
+    return p
 
 
 class ZincHelper:
@@ -95,13 +106,17 @@ class ZincHelper:
         Raises:
             RuntimeError: If the dataset fails to download.
         """
-        try:
-            file_list = self._pennsieveService.list_files(
-                limit, offset, file_type, query, organization, organization_id, dataset_id
-            )
-            response = self._pennsieveService.download_file(file_list)
-        except Exception:
+        file_list = self._pennsieveService.list_files(
+            limit, offset, file_type, query, organization, organization_id, dataset_id
+        )
+        if not file_list:
             raise RuntimeError("The dataset failed to download.")
+
+        try:
+            response = self._pennsieveService.download_file(file_list)
+        except AssertionError:
+            raise RuntimeError("The dataset failed to download.")
+
         assert response.status_code == 200
         return file_list[0]["name"]
 
@@ -141,7 +156,7 @@ class ZincHelper:
         self._get_scaffold(dataset_id)
 
         ex = VTKExporter("." if output_location is None else output_location, "scaffold")
-        ex.export_vtk_from_scene(self._region.getScene())
+        ex.export_from_scene(self._region.getScene())
 
     def get_scaffold_as_stl(self, dataset_id, output_location=None):
         """
@@ -264,7 +279,8 @@ class ZincHelper:
 
         return f"{suited_text} {not_in_text}" if not_in_scaffoldmaker else suited_text
 
-    def get_groups_not_in_scaffoldmaker(self, group_names, get_terms):
+    @staticmethod
+    def get_groups_not_in_scaffoldmaker(group_names, get_terms):
         """
         Identify and return groups that are not suitable for mapping in ScaffoldMaker.
 
@@ -303,3 +319,201 @@ class ZincHelper:
                         not_in_scaffoldmaker.append(group)
 
         return not_in_scaffoldmaker
+
+    @staticmethod
+    def get_workflow_project_files(dataset_id):
+        p = create_pennsieve_service()
+        r = p.list_files(limit=200, dataset_id=dataset_id, file_type="GenericData", query="map-client-workflow.proj")
+        return [f for f in r if f['name'] == 'map-client-workflow.proj']
+
+    @staticmethod
+    def get_visualisation_file_from_project_file(project_file_info):
+        if not isinstance(project_file_info, dict):
+            return None
+
+        if project_file_info.get('name') != 'map-client-workflow.proj':
+            return None
+
+        p = create_pennsieve_service()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            proj_file_path = os.path.join(temp_dir, "map-client-workflow.proj")
+            response = p.download_file(project_file_info, proj_file_path)
+
+            if _deal_with_download_file_response(response) != 200:
+                return None
+
+            with open(proj_file_path) as fh:
+                content = fh.read()
+
+            node_info = _extract_node_info(content)
+            if not node_info:
+                return None
+
+            conf_file_name = f"{node_info['identifier']}.conf"
+            conf_file_path = os.path.join(temp_dir, conf_file_name)
+
+            project_file_info.update({
+                'name': conf_file_name,
+                'uri': project_file_info['uri'].replace('map-client-workflow.proj', conf_file_name)
+            })
+
+            response = p.download_file(project_file_info, conf_file_path)
+            if _deal_with_download_file_response(response) != 200:
+                return None
+
+            with open(conf_file_path) as fh:
+                conf_content = json.load(fh)
+
+            visualisation_doc = conf_content.get("visualisation-doc")
+            if not visualisation_doc:
+                return None
+
+            updated_file_info = {
+                'name': visualisation_doc,
+                'uri': project_file_info['uri'].replace(
+                    conf_file_name,
+                    os.path.join(f"{node_info['identifier']}-previous-docs", visualisation_doc)
+                )
+            }
+
+            project_file_info.update(updated_file_info)
+
+        return project_file_info
+
+    @staticmethod
+    def get_visualisation_external_sources(visualisation_file_info):
+        if not _is_valid_resource_info(visualisation_file_info):
+            return None
+
+        p = create_pennsieve_service()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            visualisation_file_path = os.path.join(temp_dir, "visualisation-doc.json")
+            response = p.download_file(visualisation_file_info, visualisation_file_path)
+
+            if _deal_with_download_file_response(response) != 200:
+                return None
+
+            with open(visualisation_file_path) as fh:
+                content = fh.read()
+
+            json_content = json.loads(content)
+            model_sources = _extract_model_sources(json_content)
+            data_file_uris = _construct_absolute_uris(visualisation_file_info, model_sources)
+
+        return data_file_uris
+
+    @staticmethod
+    def print_image_from_visualisation(printed_image_location, printed_image_prefix, width, height, visualisation_file_info, model_file_info):
+        p = create_pennsieve_service()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            parsed_uri = urlparse(visualisation_file_info['uri'])
+            visualisation_file_location = os.path.join(temp_dir, parsed_uri.path.lstrip('/'))
+            os.makedirs(os.path.dirname(visualisation_file_location), exist_ok=True)
+            response = p.download_file(visualisation_file_info, visualisation_file_location)
+            for model_info in model_file_info:
+                model_parsed_uri = urlparse(model_info['uri'])
+                target_location = os.path.join(temp_dir, model_parsed_uri.path.lstrip('/'))
+                os.makedirs(os.path.dirname(target_location), exist_ok=True)
+                response = p.download_file(model_info, target_location)
+
+            exporter = ImageExporter(width, height, output_target=printed_image_location, output_prefix=printed_image_prefix)
+            exporter.set_filename(visualisation_file_location)
+            exporter.export()
+
+
+def _construct_absolute_uris(base_info, relative_file_info):
+    # Extract the base path from the URI (everything up to the last '/')
+    parsed_uri = urlparse(base_info['uri'])
+    base_dir = posixpath.dirname(parsed_uri.path)
+
+    # Construct absolute URIs
+    absolute_uris = []
+    for file_info in relative_file_info:
+        relative_path = file_info['FileName']
+        resolved_path = posixpath.normpath(posixpath.join(base_dir, relative_path))
+        absolute_uri = f"{parsed_uri.scheme}://{parsed_uri.netloc}{resolved_path}"
+        absolute_uris.append({
+            'name': posixpath.basename(relative_path),
+            'datasetId': base_info['datasetId'],
+            'datasetVersion': base_info['datasetVersion'],
+            'uri': absolute_uri
+        })
+
+    return absolute_uris
+
+
+def _is_valid_resource_info(info):
+    if not isinstance(info, dict):
+        return False
+
+    return _has_required_fields(info)
+
+
+def _extract_model_sources(data):
+    sources = []
+
+    def _recursive_search(obj):
+        if isinstance(obj, dict):
+            # Check if this dict contains a "Model" block with "Sources"
+            if "Model" in obj and "Sources" in obj["Model"]:
+                sources.append(*obj["Model"]["Sources"])
+            # Continue searching recursively in all values
+            for key, value in obj.items():
+                if key == "Materials":
+                    continue
+                _recursive_search(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                _recursive_search(item)
+
+    _recursive_search(data)
+    return sources
+
+
+def _has_required_fields(data):
+    required_keys = ['name', 'uri', 'datasetId', 'datasetVersion']
+    return all(key in data and data[key] not in [None, '', []] for key in required_keys)
+
+
+def _deal_with_download_file_response(response):
+    try:
+        json_response = response.json()
+        if 'status' in json_response:
+            return json_response['status']
+    except json.JSONDecodeError:
+        return response.status_code
+
+    return 200
+
+
+def _extract_node_info(file_content, target_name="Argon Viewer"):
+    node_number = None
+
+    # Step 1: Find the node number for the target name
+    for line in file_content.splitlines():
+        match = re.match(r"nodelist\\(\d+)\\name=(.+)", line)
+        if match and match.group(2) == target_name:
+            node_number = match.group(1)
+            break
+
+    if node_number is None:
+        return None  # Target name not found
+
+    # Step 2: Extract connections and identifier for that node
+    connections = None
+    identifier = None
+
+    for line in file_content.splitlines():
+        if line.startswith(f"nodelist\\{node_number}\\connections\\size="):
+            connections = int(line.split("=", 1)[1])
+        elif line.startswith(f"nodelist\\{node_number}\\identifier="):
+            identifier = line.split("=", 1)[1]
+
+    return {
+        "node_number": node_number,
+        "identifier": identifier,
+        "connections": connections
+    }

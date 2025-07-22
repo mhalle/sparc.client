@@ -1,9 +1,18 @@
 import os
 from time import sleep
+from unittest.mock import patch
 
 import pytest
 
 from sparc.client.zinchelper import ZincHelper
+
+from mock_responses import mock_response_project_files_396
+
+here = os.path.abspath(os.path.dirname(__file__))
+
+
+def _resource(name):
+    return os.path.join(here, 'resources', name)
 
 
 @pytest.fixture
@@ -13,7 +22,7 @@ def zinc():
 
 def test_export_scaffold_into_vtk_format(zinc):
     # create a temporary output file
-    output_location = os.path.abspath(os.path.join(os.path.dirname(__file__), "resources/"))
+    output_location = _resource('')
 
     # ensure the function returns None if the dataset has no Scaffold_Creator-settings.json file
     invalid_dataset_id = 1000000
@@ -38,7 +47,7 @@ def test_export_scaffold_into_vtk_format(zinc):
         try:
             zinc.get_scaffold_as_vtk(dataset_id, output_location)
 
-            output_file = os.path.join(output_location, "scaffold_root.vtk")
+            output_file = _resource("scaffold_root.vtk")
             assert os.path.exists(output_file)
             assert os.path.getsize(output_file) > 0
 
@@ -52,7 +61,7 @@ def test_export_scaffold_into_vtk_format(zinc):
 
 def test_export_scaffold_into_stl_format(zinc):
     # create a temporary output file
-    output_location = os.path.abspath(os.path.join(os.path.dirname(__file__), "resources/"))
+    output_location = _resource('')
 
     # ensure the function returns None if the dataset has no Scaffold_Creator-settings.json file
     invalid_dataset_id = 1000000
@@ -77,7 +86,7 @@ def test_export_scaffold_into_stl_format(zinc):
         try:
             zinc.get_scaffold_as_stl(dataset_id, output_location)
 
-            output_file = os.path.join(output_location, "scaffold_zinc_graphics.stl")
+            output_file = _resource("scaffold_zinc_graphics.stl")
             assert os.path.exists(output_file)
             assert os.path.getsize(output_file) > 0
 
@@ -90,12 +99,12 @@ def test_export_scaffold_into_stl_format(zinc):
 
 
 def _mock_get_scaffold(self, dataset_id):
-    self._region.readFile(os.path.join(os.path.dirname(__file__), "resources", "cube.exf"))
+    self._region.readFile(_resource("cube.exf"))
 
 
 def test_export_scaffold_into_stl_format_non_default_coordinates(zinc):
     # create a temporary output file
-    output_location = os.path.abspath(os.path.join(os.path.dirname(__file__), "resources/"))
+    output_location = _resource('')
 
     zinc._get_scaffold = _mock_get_scaffold.__get__(zinc)
 
@@ -103,7 +112,7 @@ def test_export_scaffold_into_stl_format_non_default_coordinates(zinc):
     dataset_id = 292
     zinc.get_scaffold_as_stl(dataset_id, output_location)
 
-    output_file = os.path.join(output_location, "scaffold_zinc_graphics.stl")
+    output_file = _resource("scaffold_zinc_graphics.stl")
     assert os.path.exists(output_file)
     assert os.path.getsize(output_file) > 0
 
@@ -142,7 +151,7 @@ def test_export_scaffold_into_stl_format_with_default_output_location(zinc):
 
 def test_export_mbf_to_vtk(zinc):
     # create a temporary output file
-    output_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "resources/mbf_vtk.vtk"))
+    output_file = _resource("mbf_vtk.vtk")
 
     # ensure the function generates a VTK file with valid content
     dataset_id = 121
@@ -173,37 +182,25 @@ def test_export_mbf_to_vtk_with_default_output_name(zinc):
 
 
 def test_analyse_with_suited_input_file(zinc):
-    input_file_name = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "resources/3Dscaffold-CGRP-Mice-Dorsal-2.xml")
-    )
+    input_file_name = _resource("3Dscaffold-CGRP-Mice-Dorsal-2.xml")
     species = "Mice"
     organ = ["stomach", "esophagus"]
     expected = f"The data file {input_file_name} is suited for mapping to the given organ."
     # Call the analyse function and assert that it succeeds
     assert zinc.analyse(input_file_name, organ, species).startswith(expected)
     # Clean up the temporary output file
-    os.remove(
-        os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "resources/3Dscaffold-CGRP-Mice-Dorsal-2.exf")
-        )
-    )
+    os.remove(_resource("3Dscaffold-CGRP-Mice-Dorsal-2.exf"))
 
 
 def test_analyse_with_input_file_extra_groups(zinc):
-    input_file_name = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "resources/3Dscaffold-CGRP-Mice-Dorsal-1.xml")
-    )
+    input_file_name = _resource("3Dscaffold-CGRP-Mice-Dorsal-1.xml")
     species = "Mice"
     organ = ["stomach", "esophagus"]
     expected = f"The data file {input_file_name} is suited for mapping to the given organ."
     # Call the analyse function and assert that it succeeds
     assert zinc.analyse(input_file_name, organ, species).startswith(expected)
     # Clean up the temporary output file
-    os.remove(
-        os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "resources/3Dscaffold-CGRP-Mice-Dorsal-1.exf")
-        )
-    )
+    os.remove(_resource("3Dscaffold-CGRP-Mice-Dorsal-1.exf"))
 
 
 def test_analyse_with_input_file_without_group(zinc):
@@ -225,7 +222,7 @@ def test_analyse_with_input_file_without_group(zinc):
 
 def test_analyse_with_unhandled_organ(zinc):
     # Create a temporary input file for testing
-    input_file_name = "resources/3Dscaffold-CGRP-Mice-Dorsal-1.xml"
+    input_file_name = _resource("3Dscaffold-CGRP-Mice-Dorsal-1.xml")
     organ = "Brain"
     expected = f"The {organ.lower()} organ is not handled by the mapping tool."
     # Call the analyse function and assert that it raises an AssertionError
@@ -256,3 +253,20 @@ def test_analyse_with_invalid_input_file_content(zinc):
         zinc.analyse(input_file_name, organ)
     # Clean up the temporary input file
     os.remove(input_file_name)
+
+
+def test_print_high_res_image(zinc):
+    dataset_id = 396
+    printed_image = _resource('')
+    with patch('sparc.client.services.pennsieve.PennsieveService.list_files', return_value=mock_response_project_files_396):
+        f = zinc.get_workflow_project_files(dataset_id)
+        proj_file = f[0].copy()
+        v = zinc.get_visualisation_file_from_project_file(proj_file)
+        a = zinc.get_visualisation_external_sources(v)
+        zinc.print_image_from_visualisation(printed_image, 'stomach', 3260, 2048, v, a)
+
+    printed_image_file = _resource('stomach_Layout1_image.jpeg')
+    assert os.path.exists(printed_image_file)
+    assert os.path.getsize(printed_image_file) > 0
+    # Clean up the temporary output file
+    os.remove(printed_image_file)
