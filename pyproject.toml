@@ -31,7 +31,7 @@ dependencies = [
   "pennsieve2 >= 0.1.2",
   "cmlibs.zinc >= 4.0.0",
   "cmlibs.utils >= 0.6.0",
-  "cmlibs.exporter >= 0.7.1",
+  "cmlibs.exporter[thumbnail_software] >= 0.8.0",
   "scaffoldmaker >= 0.10.0",
   "mbfxml2ex >= 0.8.3",
 ]
@@ -77,7 +77,7 @@ where = ["src", "config"]
 "*" = ["*.ini", "*.txt"]
 
 [build-system]
-requires = ["setuptools>=64", "setuptools-scm>=8.0", "pennsieve2", "cmlibs.zinc", "cmlibs.utils", "scaffoldmaker", "mbfxml2ex", "cmlibs.exporter[thumbnail_software]"]
+requires = ["setuptools>=64", "setuptools-scm>=8.0", "pennsieve2"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
