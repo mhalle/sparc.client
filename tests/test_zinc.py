@@ -270,3 +270,37 @@ def test_print_high_res_image(zinc):
     assert os.path.getsize(printed_image_file) > 0
     # Clean up the temporary output file
     os.remove(printed_image_file)
+
+
+def test_vtk_embedded_data(zinc):
+    dataset_id = 396
+    vtk_export_dir = _resource('')
+    with patch('sparc.client.services.pennsieve.PennsieveService.list_files', return_value=mock_response_project_files_396):
+        f = zinc.get_workflow_project_files(dataset_id)
+        proj_file = f[0].copy()
+        v = zinc.get_visualisation_file_from_project_file(proj_file)
+        a = zinc.get_visualisation_external_sources(v)
+        zinc.generate_vtk_from_visualisation(vtk_export_dir, 'stomach', v, a)
+
+    vtk_file = _resource('stomach_root.vtk')
+    assert os.path.exists(vtk_file)
+    assert os.path.getsize(vtk_file) > 0
+    # Clean up the temporary output file
+    os.remove(vtk_file)
+
+
+def test_mbfxml(zinc):
+    dataset_id = 396
+    vtk_export_dir = _resource('')
+    with patch('sparc.client.services.pennsieve.PennsieveService.list_files', return_value=mock_response_project_files_396):
+        f = zinc.get_workflow_project_files(dataset_id)
+        proj_file = f[0].copy()
+        v = zinc.get_visualisation_file_from_project_file(proj_file)
+        a = zinc.get_visualisation_external_sources(v)
+        zinc.generate_mbfxml_from_exf(vtk_export_dir, 'stomach', v, a)
+
+    vtk_file = _resource('stomach_root.vtk')
+    assert os.path.exists(vtk_file)
+    assert os.path.getsize(vtk_file) > 0
+    # Clean up the temporary output file
+    os.remove(vtk_file)

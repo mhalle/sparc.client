@@ -409,19 +409,40 @@ class ZincHelper:
         p = create_pennsieve_service()
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            parsed_uri = urlparse(visualisation_file_info['uri'])
-            visualisation_file_location = os.path.join(temp_dir, parsed_uri.path.lstrip('/'))
-            os.makedirs(os.path.dirname(visualisation_file_location), exist_ok=True)
-            response = p.download_file(visualisation_file_info, visualisation_file_location)
-            for model_info in model_file_info:
-                model_parsed_uri = urlparse(model_info['uri'])
-                target_location = os.path.join(temp_dir, model_parsed_uri.path.lstrip('/'))
-                os.makedirs(os.path.dirname(target_location), exist_ok=True)
-                response = p.download_file(model_info, target_location)
+            visualisation_file_location = _download_visualisation_files(p, temp_dir, visualisation_file_info, model_file_info)
 
             exporter = ImageExporter(width, height, output_target=printed_image_location, output_prefix=printed_image_prefix)
             exporter.set_filename(visualisation_file_location)
             exporter.export()
+
+    @staticmethod
+    def generate_vtk_from_visualisation(vtk_location, vtk_prefix, visualisation_file_info, model_file_info):
+        p = create_pennsieve_service()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            visualisation_file_location = _download_visualisation_files(p, temp_dir, visualisation_file_info, model_file_info)
+
+            exporter = VTKExporter(output_target=vtk_location, output_prefix=vtk_prefix)
+            exporter.set_filename(visualisation_file_location)
+            exporter.export()
+
+    @staticmethod
+    def generate_mbfxml_from_exf(mbfxml_location, mbfxml_prefix, model_file_info):
+        pass
+
+
+def _download_visualisation_files(p, temp_dir, visualisation_file_info, model_file_info):
+    parsed_uri = urlparse(visualisation_file_info['uri'])
+    visualisation_file_location = os.path.join(temp_dir, parsed_uri.path.lstrip('/'))
+    os.makedirs(os.path.dirname(visualisation_file_location), exist_ok=True)
+    response = p.download_file(visualisation_file_info, visualisation_file_location)
+    for model_info in model_file_info:
+        model_parsed_uri = urlparse(model_info['uri'])
+        target_location = os.path.join(temp_dir, model_parsed_uri.path.lstrip('/'))
+        os.makedirs(os.path.dirname(target_location), exist_ok=True)
+        response = p.download_file(model_info, target_location)
+
+    return visualisation_file_location
 
 
 def _construct_absolute_uris(base_info, relative_file_info):
