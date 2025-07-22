@@ -9,6 +9,7 @@ from urllib.parse import urljoin, urlparse
 from cmlibs.exporter.stl import ArgonSceneExporter as STLExporter
 from cmlibs.exporter.vtk import ArgonSceneExporter as VTKExporter
 from cmlibs.exporter.image import ArgonSceneExporter as ImageExporter
+from cmlibs.exporter.mbfxml import ArgonSceneExporter as MBFXMLExporter
 from cmlibs.utils.zinc.field import field_exists, get_group_list
 from cmlibs.zinc.context import Context
 from cmlibs.zinc.result import RESULT_OK
@@ -327,6 +328,12 @@ class ZincHelper:
         return [f for f in r if f['name'] == 'map-client-workflow.proj']
 
     @staticmethod
+    def get_exf_files(dataset_id):
+        p = create_pennsieve_service()
+        r = p.list_files(limit=200, dataset_id=dataset_id, file_type="GenericData", query=".exf")
+        return [f for f in r if f['name'].endswith('.exf')]
+
+    @staticmethod
     def get_visualisation_file_from_project_file(project_file_info):
         if not isinstance(project_file_info, dict):
             return None
@@ -428,21 +435,39 @@ class ZincHelper:
 
     @staticmethod
     def generate_mbfxml_from_exf(mbfxml_location, mbfxml_prefix, model_file_info):
-        pass
+        p = create_pennsieve_service()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            downloaded_files = _download_files(p, temp_dir, model_file_info)
+            exporter = MBFXMLExporter(output_target=mbfxml_location, output_prefix=mbfxml_prefix)
+
+            c = Context('generate_mbfxml')
+            root_region = c.getDefaultRegion()
+            root_region.readFile(downloaded_files[0])
+
+            exporter.export_from_scene(root_region.getScene())
+
+
+def _download_files(p, temp_dir, file_info):
+    if not isinstance(file_info, list):
+        file_info = [file_info]
+
+    downloaded_files = []
+    for info in file_info:
+        model_parsed_uri = urlparse(info['uri'])
+        target_location = os.path.join(temp_dir, model_parsed_uri.path.lstrip('/'))
+        downloaded_files.append(target_location)
+        os.makedirs(os.path.dirname(target_location), exist_ok=True)
+        response = p.download_file(info, target_location)
+
+    return downloaded_files
 
 
 def _download_visualisation_files(p, temp_dir, visualisation_file_info, model_file_info):
-    parsed_uri = urlparse(visualisation_file_info['uri'])
-    visualisation_file_location = os.path.join(temp_dir, parsed_uri.path.lstrip('/'))
-    os.makedirs(os.path.dirname(visualisation_file_location), exist_ok=True)
-    response = p.download_file(visualisation_file_info, visualisation_file_location)
-    for model_info in model_file_info:
-        model_parsed_uri = urlparse(model_info['uri'])
-        target_location = os.path.join(temp_dir, model_parsed_uri.path.lstrip('/'))
-        os.makedirs(os.path.dirname(target_location), exist_ok=True)
-        response = p.download_file(model_info, target_location)
+    downloaded_files = _download_files(p, temp_dir, visualisation_file_info)
+    _download_files(p, temp_dir, model_file_info)
 
-    return visualisation_file_location
+    return downloaded_files[0]
 
 
 def _construct_absolute_uris(base_info, relative_file_info):

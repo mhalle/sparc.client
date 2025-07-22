@@ -6,7 +6,7 @@ import pytest
 
 from sparc.client.zinchelper import ZincHelper
 
-from mock_responses import mock_response_project_files_396
+from mock_responses import mock_response_project_files_396, mock_response_project_files_426
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -290,17 +290,14 @@ def test_vtk_embedded_data(zinc):
 
 
 def test_mbfxml(zinc):
-    dataset_id = 396
+    dataset_id = 426
     vtk_export_dir = _resource('')
-    with patch('sparc.client.services.pennsieve.PennsieveService.list_files', return_value=mock_response_project_files_396):
-        f = zinc.get_workflow_project_files(dataset_id)
-        proj_file = f[0].copy()
-        v = zinc.get_visualisation_file_from_project_file(proj_file)
-        a = zinc.get_visualisation_external_sources(v)
-        zinc.generate_mbfxml_from_exf(vtk_export_dir, 'stomach', v, a)
+    with patch('sparc.client.services.pennsieve.PennsieveService.list_files', return_value=mock_response_project_files_426):
+        f = zinc.get_exf_files(dataset_id)
+        zinc.generate_mbfxml_from_exf(vtk_export_dir, 'nerve', f[0])
 
-    vtk_file = _resource('stomach_root.vtk')
-    assert os.path.exists(vtk_file)
-    assert os.path.getsize(vtk_file) > 0
+    mbfxml_file = _resource('nerve.xml')
+    assert os.path.exists(mbfxml_file)
+    assert os.path.getsize(mbfxml_file) > 0
     # Clean up the temporary output file
-    os.remove(vtk_file)
+    os.remove(mbfxml_file)
