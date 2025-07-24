@@ -213,8 +213,7 @@ class PennsieveService(ServiceBase):
         --------
         List of files stored at AWS with their parameters.
         """
-
-        return self.Pennsieve.get(
+        response = self.Pennsieve.get(
             self.host_api + "/discover/search/files",
             headers=self.default_headers,
             params={
@@ -226,7 +225,8 @@ class PennsieveService(ServiceBase):
                 "organizationId": organization_id,
                 "datasetId": dataset_id,
             },
-        )["files"]
+        )
+        return [] if response is None else response["files"]
 
     def list_filenames(
         self,
@@ -243,10 +243,6 @@ class PennsieveService(ServiceBase):
         --------
         list_files()
         """
-        print(limit)
-        print(offset)
-        print(query)
-        print(dataset_id)
         response = self.list_files(
             limit=limit,
             offset=offset,
@@ -256,7 +252,6 @@ class PennsieveService(ServiceBase):
             organization_id=organization_id,
             dataset_id=dataset_id,
         )
-        print(response)
 
         return list(map(lambda x: "/".join(x["uri"].split("/")[5:]), response))
 

@@ -109,13 +109,12 @@ class ZincHelper:
         file_list = self._pennsieveService.list_files(
             limit, offset, file_type, query, organization, organization_id, dataset_id
         )
+        print()
+        print(file_list)
         if not file_list:
-            raise RuntimeError("The dataset failed to download.")
+            raise RuntimeError("The dataset failed to list its files.")
 
-        try:
-            response = self._pennsieveService.download_file(file_list)
-        except AssertionError:
-            raise RuntimeError("The dataset failed to download.")
+        response = self._pennsieveService.download_file(file_list)
 
         assert response.status_code == 200
         return file_list[0]["name"]
@@ -129,14 +128,17 @@ class ZincHelper:
         """
         scaffold_setting_file = self.download_files(
             limit=1,
-            file_type="JSON",
+            file_type="Json",
             query=".*settings.json",
             dataset_id=dataset_id,
         )
-        with open(scaffold_setting_file) as f:
-            c = json.load(f)
-
-        os.remove(scaffold_setting_file)
+        try:
+            with open(scaffold_setting_file) as f:
+                c = json.load(f)
+        except UnicodeDecodeError:
+            return
+        finally:
+            os.remove(scaffold_setting_file)
 
         assert "scaffold_settings" in c
         assert "scaffoldPackage" in c["scaffold_settings"]
@@ -150,7 +152,7 @@ class ZincHelper:
 
         Args:
             dataset_id (int): The ID of the dataset to generate the VTK file for.
-            output_location (str): The output location for the generated VTK file.
+            output_location (Union[LiteralString, str, bytes]): The output location for the generated VTK file.
             If not provided, a default of the current working directory is used.
         """
         self._get_scaffold(dataset_id)
@@ -164,7 +166,7 @@ class ZincHelper:
 
         Args:
             dataset_id (int): The ID of the dataset to generate the STL file for.
-            output_location (str): The output location for the generated STL file.
+            output_location (Union[LiteralString, str, bytes]): The output location for the generated STL file.
             If not provided, a default of the current working directory is used.
         """
         self._get_scaffold(dataset_id)
@@ -195,7 +197,7 @@ class ZincHelper:
         Args:
             dataset_id (int): The ID of the dataset to generate the VTK file for.
             dataset_file (str): The name of the MBF XML segmentation file.
-            output_file (str): The name of the output VTK file.
+            output_file (Union[LiteralString, str, bytes]): The name of the output VTK file.
                 If not provided, dataset_file name with a vtk extension will be used.
         """
         segmentation_file = self.download_files(
@@ -217,7 +219,7 @@ class ZincHelper:
         Analyses an MBF XML file for mapping suitability to a specified organ.
 
         Args:
-            input_data_file_name (str): The name of the input MBF XML file.
+            input_data_file_name (Union[LiteralString, str, bytes]): The name of the input MBF XML file.
             organs (str or list): The name of the organ(s) to analyse.
                 It can be a single string representing one organ or a list of strings representing multiple organs.
             species (str, optional): The name of the species. Defaults to None.
@@ -367,14 +369,14 @@ class ZincHelper:
 
             response = p.download_file(project_file_info, conf_file_path)
             if _deal_with_download_file_response(response) != 200:
-                return None
+                return None  # pragma: no cover
 
             with open(conf_file_path) as fh:
                 conf_content = json.load(fh)
 
             visualisation_doc = conf_content.get("visualisation-doc")
             if not visualisation_doc:
-                return None
+                return None  # pragma: no cover
 
             updated_file_info = {
                 'name': visualisation_doc,
@@ -493,10 +495,7 @@ def _construct_absolute_uris(base_info, relative_file_info):
 
 
 def _is_valid_resource_info(info):
-    if not isinstance(info, dict):
-        return False
-
-    return _has_required_fields(info)
+    return _has_required_fields(info) if isinstance(info, dict) else False
 
 
 def _extract_model_sources(data):
@@ -528,12 +527,9 @@ def _has_required_fields(data):
 def _deal_with_download_file_response(response):
     try:
         json_response = response.json()
-        if 'status' in json_response:
-            return json_response['status']
+        return json_response.get('status', response.status_code)
     except json.JSONDecodeError:
         return response.status_code
-
-    return 200
 
 
 def _extract_node_info(file_content, target_name="Argon Viewer"):

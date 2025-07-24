@@ -534,3 +534,13 @@ mock_response_project_files_426 = [
      'uri': 's3://prd-sparc-discover50-use1/426/files/derivative/sub-f006/L/010-data-preparation/B824_T7L.exf',
      'createdAt': None,
      'sourcePackageId': 'N:package:5de1603f-78ae-458f-accf-fadb84e0f0b9'}]
+mock_response_project_files_292 = [
+    {'name': 'Scaffold_Creator-settings.json', 'datasetId': 292, 'datasetVersion': 3, 'size': 11344, 'fileType': 'Json',
+     'packageType': 'Unsupported', 'icon': 'JSON',
+     'uri': 's3://prd-sparc-discover-use1/292/3/files/primary/Scaffold_Creator-settings.json', 'createdAt': None,
+     'sourcePackageId': 'N:package:1101e8ec-b99c-4a93-973f-e29435b3c2b6'}]
+mock_response_project_files_11 = [
+    {'name': 'submission.xlsx', 'datasetId': 11, 'datasetVersion': 3, 'size': 1917, 'fileType': 'Json',
+     'packageType': 'Unsupported', 'icon': 'JSON',
+     'uri': 's3://pennsieve-prod-discover-publish-use1/11/3/revisions/5/files/submission.xlsx', 'createdAt': None,
+     'sourcePackageId': None}]

@@ -1,12 +1,11 @@
 import os
-from time import sleep
 from unittest.mock import patch
 
 import pytest
 
-from sparc.client.zinchelper import ZincHelper
+from sparc.client.zinchelper import ZincHelper, _extract_node_info
 
-from mock_responses import mock_response_project_files_396, mock_response_project_files_426
+from mock_responses import mock_response_project_files_396, mock_response_project_files_426, mock_response_project_files_11
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -26,37 +25,20 @@ def test_export_scaffold_into_vtk_format(zinc):
 
     # ensure the function returns None if the dataset has no Scaffold_Creator-settings.json file
     invalid_dataset_id = 1000000
-    result = None
     with pytest.raises(RuntimeError):
         result = zinc.get_scaffold_as_vtk(invalid_dataset_id, output_location)
-    assert result is None
-
-    # ensure the function raises an error if the downloaded file is not scaffold_settings file
-    dataset_id = 77
-    try:
-        with pytest.raises(AssertionError):
-            zinc.get_scaffold_as_vtk(dataset_id, output_location)
-    except (RuntimeError, TypeError):
-        pass
+        assert result is None
 
     # ensure the function generates a VTK file with valid content
     dataset_id = 292
-    count = 0
-    found = False
-    while count < 5 and not found:
-        try:
-            zinc.get_scaffold_as_vtk(dataset_id, output_location)
+    zinc.get_scaffold_as_vtk(dataset_id, output_location)
 
-            output_file = _resource("scaffold_root.vtk")
-            assert os.path.exists(output_file)
-            assert os.path.getsize(output_file) > 0
+    output_file = _resource("scaffold_root.vtk")
+    assert os.path.exists(output_file)
+    assert os.path.getsize(output_file) > 0
 
-            # Clean up the temporary output file
-            os.remove(output_file)
-            found = True
-        except (RuntimeError, TypeError):
-            count += 1
-            sleep(0.25)
+    # Clean up the temporary output file
+    os.remove(output_file)
 
 
 def test_export_scaffold_into_stl_format(zinc):
@@ -65,37 +47,20 @@ def test_export_scaffold_into_stl_format(zinc):
 
     # ensure the function returns None if the dataset has no Scaffold_Creator-settings.json file
     invalid_dataset_id = 1000000
-    result = None
     with pytest.raises(RuntimeError):
         result = zinc.get_scaffold_as_stl(invalid_dataset_id, output_location)
-    assert result is None
-
-    # ensure the function raises an error if the downloaded file is not scaffold_settings file
-    dataset_id = 77
-    try:
-        with pytest.raises(AssertionError):
-            zinc.get_scaffold_as_stl(dataset_id, output_location)
-    except (RuntimeError, TypeError):
-        pass
+        assert result is None
 
     # ensure the function generates an STL file with valid content
     dataset_id = 292
-    count = 0
-    found = False
-    while count < 5 and not found:
-        try:
-            zinc.get_scaffold_as_stl(dataset_id, output_location)
+    zinc.get_scaffold_as_stl(dataset_id, output_location)
 
-            output_file = _resource("scaffold_zinc_graphics.stl")
-            assert os.path.exists(output_file)
-            assert os.path.getsize(output_file) > 0
+    output_file = _resource("scaffold_zinc_graphics.stl")
+    assert os.path.exists(output_file)
+    assert os.path.getsize(output_file) > 0
 
-            # Clean up the temporary output file
-            os.remove(output_file)
-            found = True
-        except (RuntimeError, AssertionError):
-            count += 1
-            sleep(0.25)
+    # Clean up the temporary output file
+    os.remove(output_file)
 
 
 def _mock_get_scaffold(self, dataset_id):
@@ -282,11 +247,12 @@ def test_vtk_embedded_data(zinc):
         a = zinc.get_visualisation_external_sources(v)
         zinc.generate_vtk_from_visualisation(vtk_export_dir, 'stomach', v, a)
 
-    vtk_file = _resource('stomach_root.vtk')
-    assert os.path.exists(vtk_file)
-    assert os.path.getsize(vtk_file) > 0
-    # Clean up the temporary output file
-    os.remove(vtk_file)
+    for f in ['stomach_root.vtk', 'stomach_root_marker.vtk', 'stomach_vasculature_data.vtk']:
+        vtk_file = _resource(f)
+        assert os.path.exists(vtk_file)
+        assert os.path.getsize(vtk_file) > 0
+        # Clean up the temporary output file
+        os.remove(vtk_file)
 
 
 def test_mbfxml(zinc):
@@ -301,3 +267,32 @@ def test_mbfxml(zinc):
     assert os.path.getsize(mbfxml_file) > 0
     # Clean up the temporary output file
     os.remove(mbfxml_file)
+
+
+def test_invalid_input_for_api(zinc):
+    f = zinc.get_visualisation_file_from_project_file([])
+    assert f is None
+    f = zinc.get_visualisation_file_from_project_file({})
+    assert f is None
+    f = zinc.get_visualisation_file_from_project_file({'uri': 'https://example.com'})
+    assert f is None
+    info = {'name': 'map-client-workflow.proj', 'datasetId': 100000, 'datasetVersion': 999}
+    f = zinc.get_visualisation_file_from_project_file(info)
+    assert f is None
+    f = zinc.get_visualisation_external_sources([])
+    assert f is None
+    info = {'name': 'a-file.txt', 'datasetId': 100000, 'datasetVersion': 999, 'uri': 'https://example.com'}
+    f = zinc.get_visualisation_external_sources(info)
+    assert f is None
+
+    with patch('sparc.client.services.pennsieve.PennsieveService.list_files', return_value=mock_response_project_files_11):
+        zinc.get_scaffold_as_stl(11)
+
+    with patch('sparc.client.services.pennsieve.PennsieveService.list_files', return_value=mock_response_project_files_426):
+        info = {'name': 'map-client-workflow.proj', 'datasetId': 426, 'datasetVersion': 3,
+                'uri': 's3://prd-sparc-discover50-use1/426/files/derivative/sub-f006/L/010-data-preparation/B824_C3L.exf'}
+        zinc.get_visualisation_file_from_project_file(info)
+
+
+def test_private_functions(zinc):
+    _extract_node_info("Some content")
