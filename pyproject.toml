@@ -31,7 +31,7 @@ dependencies = [
   "pennsieve2 >= 0.1.2",
   "cmlibs.zinc >= 4.0.0",
   "cmlibs.utils >= 0.6.0",
-  "cmlibs.exporter[opengl_hardware] >= 0.9.0",
+  "cmlibs.exporter >= 0.9.0",
   "scaffoldmaker >= 0.10.0",
   "mbfxml2ex >= 0.8.3",
 ]

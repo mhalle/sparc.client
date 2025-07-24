@@ -287,6 +287,7 @@ def test_invalid_input_for_api(zinc):
 
     with patch('sparc.client.services.pennsieve.PennsieveService.list_files', return_value=mock_response_project_files_11):
         zinc.get_scaffold_as_stl(11)
+        os.remove("scaffold_zinc_graphics.stl")
 
     with patch('sparc.client.services.pennsieve.PennsieveService.list_files', return_value=mock_response_project_files_426):
         info = {'name': 'map-client-workflow.proj', 'datasetId': 426, 'datasetVersion': 3,
