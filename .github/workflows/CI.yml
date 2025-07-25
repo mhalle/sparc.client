@@ -36,6 +36,7 @@ jobs:
     - name: Setup OpenGL
       run: |
           sudo apt-get install libopengl0 libglu1-mesa libosmesa6-dev
+          ldconfig -p | grep OSMesa
 
     - name: Install dependencies
       run: |
