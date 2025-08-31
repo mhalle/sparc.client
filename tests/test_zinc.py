@@ -1,10 +1,9 @@
 import os
-from ctypes import CDLL
 from unittest.mock import patch
 
 import pytest
 
-from sparc.client.zinchelper import ZincHelper, _extract_node_info
+from sparc.client.zinchelper import ZincHelper
 
 from mock_responses import mock_response_project_files_396, mock_response_project_files_426, mock_response_project_files_11
 
@@ -294,7 +293,3 @@ def test_invalid_input_for_api(zinc):
         info = {'name': 'map-client-workflow.proj', 'datasetId': 426, 'datasetVersion': 3,
                 'uri': 's3://prd-sparc-discover50-use1/426/files/derivative/sub-f006/L/010-data-preparation/B824_C3L.exf'}
         zinc.get_visualisation_file_from_project_file(info)
-
-
-def test_private_functions(zinc):
-    _extract_node_info("Some content")
