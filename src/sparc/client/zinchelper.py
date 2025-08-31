@@ -109,8 +109,6 @@ class ZincHelper:
         file_list = self._pennsieveService.list_files(
             limit, offset, file_type, query, organization, organization_id, dataset_id
         )
-        print()
-        print(file_list)
         if not file_list:
             raise RuntimeError("The dataset failed to list its files.")
 
