@@ -222,8 +222,6 @@ def test_analyse_with_invalid_input_file_content(zinc):
 
 
 def test_print_high_res_image(zinc):
-    osmesa = CDLL("libOSMesa.so")
-
     dataset_id = 396
     printed_image = _resource('')
     with patch('sparc.client.services.pennsieve.PennsieveService.list_files', return_value=mock_response_project_files_396):
