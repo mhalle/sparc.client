@@ -168,7 +168,7 @@ def test_list_filenames(mocker, mock_pennsieve):
     expected = ["a.txt"]
     mocker.patch("pennsieve2.Pennsieve.get", mock_pennsieve.list_files)
     p = PennsieveService(connect=False)
-    actual = p.list_filenames({"uri": "http://pennsieve.io/dataset/file"})
+    actual = p.list_filenames()
     assert expected == actual
 
 

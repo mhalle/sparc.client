@@ -25,22 +25,32 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10']
+
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Python 3.10
+      id: setup-python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
+        python-version: ${{ matrix.python-version }}
 
     - name: Setup OpenGL
       run: |
-          sudo apt-get install libopengl0 libglu1-mesa
+          sudo apt-get install libosmesa6 libglu1-mesa
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        PY_VERSION_NODOT=$(echo "${{ matrix.python-version }}" | tr -d '.')
+        WHEEL_URL="https://github.com/cmlibs/swigzinc/releases/download/osmesa/cmlibs_zinc-4.2.1-cp${PY_VERSION_NODOT}-cp${PY_VERSION_NODOT}-linux_x86_64.whl"
+        echo "INFO: Installing CMLibs Zinc wheel from ${WHEEL_URL}"
+        pip install "${WHEEL_URL}"
         pip install -e '.[test]'
+        pip install PyOpenGL PyOpenGL_accelerate
 
     - name: Lint with flake8
       run: |
@@ -50,6 +60,9 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Generate coverage report
+      env:
+        PYOPENGL_PLATFORM: osmesa
+        LIBGL_ALWAYS_SOFTWARE: 1
       run: |
         PYTHONPATH=src
         pytest --cov=./src tests/ --cov-report term --cov-report=xml:coverage.xml

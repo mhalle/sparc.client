@@ -1,9 +1,14 @@
 import json
 import os
+import posixpath
 import re
+import tempfile
+from urllib.parse import urlparse
 
 from cmlibs.exporter.stl import ArgonSceneExporter as STLExporter
 from cmlibs.exporter.vtk import ArgonSceneExporter as VTKExporter
+from cmlibs.exporter.image import ArgonSceneExporter as ImageExporter
+from cmlibs.exporter.mbfxml import ArgonSceneExporter as MBFXMLExporter
 from cmlibs.utils.zinc.field import field_exists, get_group_list
 from cmlibs.zinc.context import Context
 from cmlibs.zinc.result import RESULT_OK
@@ -26,6 +31,12 @@ from scaffoldmaker.annotation.stomach_terms import get_stomach_term
 from scaffoldmaker.utils.exportvtk import ExportVtk
 
 from sparc.client.services.pennsieve import PennsieveService
+
+
+def create_pennsieve_service():
+    pennsieve_config = {"pennsieve_profile_name": "zinc_helper"}
+    p = PennsieveService(config=pennsieve_config, connect=False)
+    return p
 
 
 class ZincHelper:
@@ -95,13 +106,14 @@ class ZincHelper:
         Raises:
             RuntimeError: If the dataset fails to download.
         """
-        try:
-            file_list = self._pennsieveService.list_files(
-                limit, offset, file_type, query, organization, organization_id, dataset_id
-            )
-            response = self._pennsieveService.download_file(file_list)
-        except Exception:
-            raise RuntimeError("The dataset failed to download.")
+        file_list = self._pennsieveService.list_files(
+            limit, offset, file_type, query, organization, organization_id, dataset_id
+        )
+        if not file_list:
+            raise RuntimeError("The dataset failed to list its files.")
+
+        response = self._pennsieveService.download_file(file_list)
+
         assert response.status_code == 200
         return file_list[0]["name"]
 
@@ -114,14 +126,17 @@ class ZincHelper:
         """
         scaffold_setting_file = self.download_files(
             limit=1,
-            file_type="JSON",
+            file_type="Json",
             query=".*settings.json",
             dataset_id=dataset_id,
         )
-        with open(scaffold_setting_file) as f:
-            c = json.load(f)
-
-        os.remove(scaffold_setting_file)
+        try:
+            with open(scaffold_setting_file) as f:
+                c = json.load(f)
+        except UnicodeDecodeError:
+            return
+        finally:
+            os.remove(scaffold_setting_file)
 
         assert "scaffold_settings" in c
         assert "scaffoldPackage" in c["scaffold_settings"]
@@ -135,13 +150,13 @@ class ZincHelper:
 
         Args:
             dataset_id (int): The ID of the dataset to generate the VTK file for.
-            output_location (str): The output location for the generated VTK file.
+            output_location (Union[LiteralString, str, bytes]): The output location for the generated VTK file.
             If not provided, a default of the current working directory is used.
         """
         self._get_scaffold(dataset_id)
 
         ex = VTKExporter("." if output_location is None else output_location, "scaffold")
-        ex.export_vtk_from_scene(self._region.getScene())
+        ex.export_from_scene(self._region.getScene())
 
     def get_scaffold_as_stl(self, dataset_id, output_location=None):
         """
@@ -149,7 +164,7 @@ class ZincHelper:
 
         Args:
             dataset_id (int): The ID of the dataset to generate the STL file for.
-            output_location (str): The output location for the generated STL file.
+            output_location (Union[LiteralString, str, bytes]): The output location for the generated STL file.
             If not provided, a default of the current working directory is used.
         """
         self._get_scaffold(dataset_id)
@@ -180,7 +195,7 @@ class ZincHelper:
         Args:
             dataset_id (int): The ID of the dataset to generate the VTK file for.
             dataset_file (str): The name of the MBF XML segmentation file.
-            output_file (str): The name of the output VTK file.
+            output_file (Union[LiteralString, str, bytes]): The name of the output VTK file.
                 If not provided, dataset_file name with a vtk extension will be used.
         """
         segmentation_file = self.download_files(
@@ -202,7 +217,7 @@ class ZincHelper:
         Analyses an MBF XML file for mapping suitability to a specified organ.
 
         Args:
-            input_data_file_name (str): The name of the input MBF XML file.
+            input_data_file_name (Union[LiteralString, str, bytes]): The name of the input MBF XML file.
             organs (str or list): The name of the organ(s) to analyse.
                 It can be a single string representing one organ or a list of strings representing multiple organs.
             species (str, optional): The name of the species. Defaults to None.
@@ -260,11 +275,13 @@ class ZincHelper:
 
         # Generate the analysis result message based on the suitability of the groups
         suited_text = f"The data file {input_data_file_name} is suited for mapping to the given organ."
-        not_in_text = f"However, the mapping tool does not have the following groups defined by default; {', '.join(not_in_scaffoldmaker)}."
+        not_in_text = (f"However, the mapping tool does not have the following groups defined by default; "
+                       f"{', '.join(not_in_scaffoldmaker)}.")
 
         return f"{suited_text} {not_in_text}" if not_in_scaffoldmaker else suited_text
 
-    def get_groups_not_in_scaffoldmaker(self, group_names, get_terms):
+    @staticmethod
+    def get_groups_not_in_scaffoldmaker(group_names, get_terms):
         """
         Identify and return groups that are not suitable for mapping in ScaffoldMaker.
 
@@ -303,3 +320,241 @@ class ZincHelper:
                         not_in_scaffoldmaker.append(group)
 
         return not_in_scaffoldmaker
+
+    @staticmethod
+    def get_workflow_project_files(dataset_id):
+        p = create_pennsieve_service()
+        r = p.list_files(limit=200, dataset_id=dataset_id, file_type="GenericData", query="map-client-workflow.proj")
+        return [f for f in r if f['name'] == 'map-client-workflow.proj']
+
+    @staticmethod
+    def get_exf_files(dataset_id):
+        p = create_pennsieve_service()
+        r = p.list_files(limit=200, dataset_id=dataset_id, file_type="GenericData", query=".exf")
+        return [f for f in r if f['name'].endswith('.exf')]
+
+    @staticmethod
+    def get_visualisation_file_from_project_file(project_file_info):
+        if not isinstance(project_file_info, dict):
+            return None
+
+        if project_file_info.get('name') != 'map-client-workflow.proj':
+            return None
+
+        p = create_pennsieve_service()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            proj_file_path = os.path.join(temp_dir, "map-client-workflow.proj")
+            response = p.download_file(project_file_info, proj_file_path)
+
+            if _deal_with_download_file_response(response) != 200:
+                return None
+
+            with open(proj_file_path) as fh:
+                content = fh.read()
+
+            node_info = _extract_node_info(content)
+            if not node_info:
+                return None
+
+            conf_file_name = f"{node_info['identifier']}.conf"
+            conf_file_path = os.path.join(temp_dir, conf_file_name)
+
+            project_file_info.update({
+                'name': conf_file_name,
+                'uri': project_file_info['uri'].replace('map-client-workflow.proj', conf_file_name)
+            })
+
+            response = p.download_file(project_file_info, conf_file_path)
+            if _deal_with_download_file_response(response) != 200:
+                return None  # pragma: no cover
+
+            with open(conf_file_path) as fh:
+                conf_content = json.load(fh)
+
+            visualisation_doc = conf_content.get("visualisation-doc")
+            if not visualisation_doc:
+                return None  # pragma: no cover
+
+            updated_file_info = {
+                'name': visualisation_doc,
+                'uri': project_file_info['uri'].replace(
+                    conf_file_name,
+                    os.path.join(f"{node_info['identifier']}-previous-docs", visualisation_doc)
+                )
+            }
+
+            project_file_info.update(updated_file_info)
+
+        return project_file_info
+
+    @staticmethod
+    def get_visualisation_external_sources(visualisation_file_info):
+        if not _is_valid_resource_info(visualisation_file_info):
+            return None
+
+        p = create_pennsieve_service()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            visualisation_file_path = os.path.join(temp_dir, "visualisation-doc.json")
+            response = p.download_file(visualisation_file_info, visualisation_file_path)
+
+            if _deal_with_download_file_response(response) != 200:
+                return None
+
+            with open(visualisation_file_path) as fh:
+                content = fh.read()
+
+            json_content = json.loads(content)
+            model_sources = _extract_model_sources(json_content)
+            data_file_uris = _construct_absolute_uris(visualisation_file_info, model_sources)
+
+        return data_file_uris
+
+    @staticmethod
+    def print_image_from_visualisation(printed_image_location, printed_image_prefix, width, height,
+                                       visualisation_file_info, model_file_info):
+        p = create_pennsieve_service()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            visualisation_file_location = _download_visualisation_files(p, temp_dir, visualisation_file_info, model_file_info)
+
+            exporter = ImageExporter(width, height, output_target=printed_image_location, output_prefix=printed_image_prefix)
+            exporter.set_filename(visualisation_file_location)
+            exporter.export()
+
+    @staticmethod
+    def generate_vtk_from_visualisation(vtk_location, vtk_prefix, visualisation_file_info, model_file_info):
+        p = create_pennsieve_service()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            visualisation_file_location = _download_visualisation_files(p, temp_dir, visualisation_file_info, model_file_info)
+
+            exporter = VTKExporter(output_target=vtk_location, output_prefix=vtk_prefix)
+            exporter.set_filename(visualisation_file_location)
+            exporter.export()
+
+    @staticmethod
+    def generate_mbfxml_from_exf(mbfxml_location, mbfxml_prefix, model_file_info):
+        p = create_pennsieve_service()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            downloaded_files = _download_files(p, temp_dir, model_file_info)
+            exporter = MBFXMLExporter(output_target=mbfxml_location, output_prefix=mbfxml_prefix)
+
+            c = Context('generate_mbfxml')
+            root_region = c.getDefaultRegion()
+            root_region.readFile(downloaded_files[0])
+
+            exporter.export_from_scene(root_region.getScene())
+
+
+def _download_files(p, temp_dir, file_info):
+    if not isinstance(file_info, list):
+        file_info = [file_info]
+
+    downloaded_files = []
+    for info in file_info:
+        model_parsed_uri = urlparse(info['uri'])
+        target_location = os.path.join(temp_dir, model_parsed_uri.path.lstrip('/'))
+        downloaded_files.append(target_location)
+        os.makedirs(os.path.dirname(target_location), exist_ok=True)
+        p.download_file(info, target_location)
+
+    return downloaded_files
+
+
+def _download_visualisation_files(p, temp_dir, visualisation_file_info, model_file_info):
+    downloaded_files = _download_files(p, temp_dir, visualisation_file_info)
+    _download_files(p, temp_dir, model_file_info)
+
+    return downloaded_files[0]
+
+
+def _construct_absolute_uris(base_info, relative_file_info):
+    # Extract the base path from the URI (everything up to the last '/')
+    parsed_uri = urlparse(base_info['uri'])
+    base_dir = posixpath.dirname(parsed_uri.path)
+
+    # Construct absolute URIs
+    absolute_uris = []
+    for file_info in relative_file_info:
+        relative_path = file_info['FileName']
+        resolved_path = posixpath.normpath(posixpath.join(base_dir, relative_path))
+        absolute_uri = f"{parsed_uri.scheme}://{parsed_uri.netloc}{resolved_path}"
+        absolute_uris.append({
+            'name': posixpath.basename(relative_path),
+            'datasetId': base_info['datasetId'],
+            'datasetVersion': base_info['datasetVersion'],
+            'uri': absolute_uri
+        })
+
+    return absolute_uris
+
+
+def _is_valid_resource_info(info):
+    return _has_required_fields(info) if isinstance(info, dict) else False
+
+
+def _extract_model_sources(data):
+    sources = []
+
+    def _recursive_search(obj):
+        if isinstance(obj, dict):
+            # Check if this dict contains a "Model" block with "Sources"
+            if "Model" in obj and "Sources" in obj["Model"]:
+                sources.append(*obj["Model"]["Sources"])
+            # Continue searching recursively in all values
+            for key, value in obj.items():
+                if key == "Materials":
+                    continue
+                _recursive_search(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                _recursive_search(item)
+
+    _recursive_search(data)
+    return sources
+
+
+def _has_required_fields(data):
+    required_keys = ['name', 'uri', 'datasetId', 'datasetVersion']
+    return all(key in data and data[key] not in [None, '', []] for key in required_keys)
+
+
+def _deal_with_download_file_response(response):
+    try:
+        json_response = response.json()
+        return json_response.get('status', response.status_code)
+    except json.JSONDecodeError:
+        return response.status_code
+
+
+def _extract_node_info(file_content, target_name="Argon Viewer"):
+    node_number = None
+
+    # Step 1: Find the node number for the target name
+    for line in file_content.splitlines():
+        match = re.match(r"nodelist\\(\d+)\\name=(.+)", line)
+        if match and match.group(2) == target_name:
+            node_number = match.group(1)
+            break
+
+    if node_number is None:
+        return None  # Target name not found
+
+    # Step 2: Extract connections and identifier for that node
+    connections = None
+    identifier = None
+
+    for line in file_content.splitlines():
+        if line.startswith(f"nodelist\\{node_number}\\connections\\size="):
+            connections = int(line.split("=", 1)[1])
+        elif line.startswith(f"nodelist\\{node_number}\\identifier="):
+            identifier = line.split("=", 1)[1]
+
+    return {
+        "node_number": node_number,
+        "identifier": identifier,
+        "connections": connections
+    }

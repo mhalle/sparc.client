@@ -213,8 +213,7 @@ class PennsieveService(ServiceBase):
         --------
         List of files stored at AWS with their parameters.
         """
-
-        return self.Pennsieve.get(
+        response = self.Pennsieve.get(
             self.host_api + "/discover/search/files",
             headers=self.default_headers,
             params={
@@ -226,7 +225,8 @@ class PennsieveService(ServiceBase):
                 "organizationId": organization_id,
                 "datasetId": dataset_id,
             },
-        )["files"]
+        )
+        return [] if response is None else response["files"]
 
     def list_filenames(
         self,
@@ -311,14 +311,14 @@ class PennsieveService(ServiceBase):
 
         # create a tuple with datasetId and version of the dataset
         properties = set([(x["datasetId"], x["datasetVersion"]) for x in file_list])
-
-        # extract all the files
-        paths = [
-            x if x.get("uri") is None else "/".join(x.get("uri").split("/")[5:]) for x in file_list
-        ]
         assert (
             len(properties) == 1
         ), "Downloading files from multiple datasets or dataset versions is not supported."
+
+        # extract all the files
+        paths = [
+            x if x.get("uri") is None else _get_files_tail(x.get("uri")) for x in file_list
+        ]
 
         # initialize parameters for the request
         json = {
@@ -418,3 +418,14 @@ class PennsieveService(ServiceBase):
         String in JSON format with response from the server.
         """
         return self.Pennsieve.delete(url, **kwargs)
+
+
+def _get_files_tail(path: str, keyword: str = 'files') -> str:
+    keyword_lower = keyword.lower()
+    path_lower = path.lower()
+
+    index = path_lower.find(keyword_lower)
+    if index == -1:
+        return ''  # or raise an error, depending on your needs
+
+    return path[index:]  # returns from 'files' onward
