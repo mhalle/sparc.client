@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [v0.4.0] - 2025-09-01
+### :wrench: Chores
+- [`ff28e39`](https://github.com/nih-sparc/sparc.client/commit/ff28e39e64e71f546a5ac273fdbc5f7b9690850e) - [fallback commit] Full Changelog: https://github.com/nih-sparc/sparc.client/compare/v0.3.99...v0.4.0
+
+
 ## [v0.3.99] - 2025-06-16
 ### :wrench: Chores
 - [`f778a38`](https://github.com/nih-sparc/sparc.client/commit/f778a38b490512a918ed2be278efedfeda21b6ef) - remove tmate session. *(commit by [@hsorby](https://github.com/hsorby))*
@@ -108,3 +113,4 @@ Alpha release of Python Sparc Client.
 [v0.3.0]: https://github.com/nih-sparc/sparc.client/compare/v0.2.0...v0.3.0
 [v0.3.1]: https://github.com/nih-sparc/sparc.client/compare/v0.3.0...v0.3.1
 [v0.3.99]: https://github.com/nih-sparc/sparc.client/compare/v0.3.1...v0.3.99
+[v0.4.0]: https://github.com/nih-sparc/sparc.client/compare/v0.3.99...v0.4.0
