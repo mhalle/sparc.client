@@ -5,12 +5,14 @@ import re
 import tempfile
 from urllib.parse import urlparse
 
+import mbfxml2ex.exceptions
 from cmlibs.exporter.stl import ArgonSceneExporter as STLExporter
 from cmlibs.exporter.vtk import ArgonSceneExporter as VTKExporter
 from cmlibs.exporter.image import ArgonSceneExporter as ImageExporter
 from cmlibs.exporter.mbfxml import ArgonSceneExporter as MBFXMLExporter
 from cmlibs.utils.zinc.field import field_exists, get_group_list
 from cmlibs.zinc.context import Context
+from cmlibs.zinc.field import Field
 from cmlibs.zinc.result import RESULT_OK
 from mbfxml2ex.app import read_xml
 from mbfxml2ex.zinc import load, write_ex
@@ -241,47 +243,65 @@ class ZincHelper:
 
             # Check if the provided organ is handled by the mapping tool
             if organ not in self._allOrgan:
-                return f"The {organ} organ is not handled by the mapping tool."
+                return {"message": f"The {organ} organ is not handled by the mapping tool."}
 
             # Get the corresponding term (function) for the organ from the mapping tool
             get_term = self._allOrgan[organ]
             get_terms.append(get_term)
 
-        # Check if the input file is an XML file
-        if not input_data_file_name.endswith(".xml"):
-            raise ValueError("Input file must be an MBF XML file")
-
         # Read the input data file and write the contents to an ex file
         ex_file_name = os.path.splitext(input_data_file_name)[0] + ".exf"
-        write_ex(ex_file_name, read_xml(input_data_file_name))
+        try:
+            write_ex(ex_file_name, read_xml(input_data_file_name))
+        except mbfxml2ex.exceptions.MBFXMLFormat:
+            raise ValueError("Input file must be an MBF XML file")
 
         # Read the ex file and ensure that it was loaded successfully
-        result = self._region.readFile(ex_file_name)
-        assert result == RESULT_OK, f"Failed to load data file {input_data_file_name}"
+        self._region.readFile(ex_file_name)
 
         # Get groups that were loaded from the ex file
         fieldmodule = self._region.getFieldmodule()
-        groupNames = [group.getName() for group in get_group_list(fieldmodule)]
+        coordinates = fieldmodule.findFieldByName("coordinates").castFiniteElement()
+        if not coordinates.isValid() or coordinates.getNumberOfComponents() != 3:
+            return {"message": "Analysis failed: The file does not contain a valid 3D coordinates field.", "status_code": 2}
 
-        # If the ex file doesn't have any groups, it's not suitable for mapping
-        if not groupNames:
-            return (
-                f"The data file {input_data_file_name} doesn't have any groups, "
-                f"therefore this data file is not suitable for mapping."
-            )
+        group_names = [group.getName() for group in get_group_list(fieldmodule)]
+        has_nodes = False
+        nodeset = fieldmodule.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
+        for group_name in group_names:
+            group = fieldmodule.findFieldByName(group_name).castGroup()
+            if group.isValid():
+                group_nodeset = group.getNodesetGroup(nodeset)
+                if group_nodeset.getSize() > 0:
+                    has_nodes = True
+                    break
 
-        # Get groups that are not suitable for mapping.
-        not_in_scaffoldmaker = self.get_groups_not_in_scaffoldmaker(groupNames, get_terms)
+        if not has_nodes:
+            return {"message": "Analysis failed: The groups in the file contain no geometric data (nodes).", "status_code": 3}
 
-        # Generate the analysis result message based on the suitability of the groups
-        suited_text = f"The data file {input_data_file_name} is suited for mapping to the given organ."
-        not_in_text = (f"However, the mapping tool does not have the following groups defined by default; "
-                       f"{', '.join(not_in_scaffoldmaker)}.")
+        unrecognized_groups = self.get_groups_not_in_scaffoldmaker(group_names, get_terms, species)
+        recognized_groups = [g for g in group_names if g not in unrecognized_groups and g != 'marker']
 
-        return f"{suited_text} {not_in_text}" if not_in_scaffoldmaker else suited_text
+        total_groups = len(group_names) - (1 if 'marker' in group_names else 0)  # Exclude 'marker' from count
+        recognized_count = len(recognized_groups)
+        match_percentage = (recognized_count / total_groups) * 100 if total_groups > 0 else 0
+
+        message = f"The data file {input_data_file_name} has a {match_percentage:.2f}% match for the given organ(s)."
+        if unrecognized_groups:
+            message += f" Unrecognized groups: {', '.join(unrecognized_groups)}."
+
+        return {
+            "message": message,
+            "status_code": 0,
+            "total_groups": total_groups,
+            "recognized_groups_count": recognized_count,
+            "match_percentage": match_percentage,
+            "recognized_groups": recognized_groups,
+            "unrecognized_groups": unrecognized_groups,
+        }
 
     @staticmethod
-    def get_groups_not_in_scaffoldmaker(group_names, get_terms):
+    def get_groups_not_in_scaffoldmaker(group_names, get_terms, species=None):
         """
         Identify and return groups that are not suitable for mapping in ScaffoldMaker.
 
@@ -289,6 +309,7 @@ class ZincHelper:
             group_names (list): A list of strings containing group names to be evaluated.
             get_terms (list): A list of functions, each capable of determining the suitability of a group
                              for mapping based on specific criteria.
+            species (str, optional): The name of the species. Defaults to None.
 
         Returns:
             list: A list of group names that are not suitable for mapping in ScaffoldMaker.

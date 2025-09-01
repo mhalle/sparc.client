@@ -150,9 +150,10 @@ def test_analyse_with_suited_input_file(zinc):
     input_file_name = _resource("3Dscaffold-CGRP-Mice-Dorsal-2.xml")
     species = "Mice"
     organ = ["stomach", "esophagus"]
-    expected = f"The data file {input_file_name} is suited for mapping to the given organ."
     # Call the analyse function and assert that it succeeds
-    assert zinc.analyse(input_file_name, organ, species).startswith(expected)
+    suitability = zinc.analyse(input_file_name, organ, species)
+    assert suitability
+    assert suitability["match_percentage"] >= 90.0
     # Clean up the temporary output file
     os.remove(_resource("3Dscaffold-CGRP-Mice-Dorsal-2.exf"))
 
@@ -161,25 +162,41 @@ def test_analyse_with_input_file_extra_groups(zinc):
     input_file_name = _resource("3Dscaffold-CGRP-Mice-Dorsal-1.xml")
     species = "Mice"
     organ = ["stomach", "esophagus"]
-    expected = f"The data file {input_file_name} is suited for mapping to the given organ."
     # Call the analyse function and assert that it succeeds
-    assert zinc.analyse(input_file_name, organ, species).startswith(expected)
+    suitability = zinc.analyse(input_file_name, organ, species)
+    assert suitability
+    assert suitability["match_percentage"] >= 60.0
     # Clean up the temporary output file
     os.remove(_resource("3Dscaffold-CGRP-Mice-Dorsal-1.exf"))
 
 
-def test_analyse_with_input_file_without_group(zinc):
-    # Test file that has no group
+def test_analyse_with_input_file_no_data(zinc):
+    input_file_name = _resource("3Dscaffold-CGRP-Mice-Dorsal-3.xml")
+    species = "Mice"
+    organ = ["heart"]
+    expected = "Analysis failed: The groups in the file contain no geometric data (nodes)."
+    # Call the analyse function and assert that it succeeds
+    suitability = zinc.analyse(input_file_name, organ, species)
+    assert suitability
+    assert suitability["message"] == expected
+    # Clean up the temporary output file
+    os.remove(_resource("3Dscaffold-CGRP-Mice-Dorsal-3.exf"))
+
+
+def test_analyse_with_input_file_without_coordinate_field(zinc):
+    # Test file that has no coordinate field
     input_file_name = "test_input.xml"
     organ = "stomach"
     expected = (
-        f"The data file {input_file_name} doesn't have any groups, "
-        f"therefore this data file is not suitable for mapping."
+        f"Analysis failed: The file does not contain a valid 3D coordinates field."
     )
     with open(input_file_name, "w") as f:
         f.write("<root><data>Test data</data></root>")
     # Call the analyse function and assert that it succeeds
-    assert zinc.analyse(input_file_name, organ) == expected
+    suitability = zinc.analyse(input_file_name, organ)
+    assert suitability
+    assert suitability["message"] == expected
+
     # Clean up the temporary output file
     os.remove(input_file_name)
     os.remove("test_input.exf")
@@ -191,7 +208,9 @@ def test_analyse_with_unhandled_organ(zinc):
     organ = "Brain"
     expected = f"The {organ.lower()} organ is not handled by the mapping tool."
     # Call the analyse function and assert that it raises an AssertionError
-    assert zinc.analyse(input_file_name, organ) == expected
+    suitability = zinc.analyse(input_file_name, organ)
+    assert suitability
+    assert suitability["message"] == expected
 
 
 def test_analyse_with_invalid_input_file_type(zinc):

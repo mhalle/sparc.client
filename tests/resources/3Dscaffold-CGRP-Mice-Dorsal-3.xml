@@ -1,0 +1,31 @@
+<mbf version="4.0" xmlns="http://www.mbfbioscience.com" appname="Neurolucida 360" appversion="2021.1.1?" apprrid="SCR_016788" insrrid="SCR_004314">
+<description />
+<filefacts>
+  <sectionmanager currentsection="" sectioninterval="0" startingsection="0" />
+</filefacts>
+<sparcdata>
+    <subject species="http://purl.obolibrary.org/obo/NCBITaxon_10090" subjectid="CGRP-2-Dorsal" sex="Blinded to condition" age="Blinded to condition" />
+    <atlas organ="esophagus" label="Species Independent" rootid="http://purl.org/sig/ont/fma/fma7131" />
+</sparcdata>
+<property name="TimePointManager"><n>2</n><s>-1</s><s>-1</s><n>0</n></property>
+<images>
+  <image>
+    <filename>//net.ucf.edu/BSBS/Cheng/Shared/Drew Nguyen/Neurolucida 360/CGRP-Mice-Dorsal-1/mouse second CGRP stomach NUM-1 CGRP Mergede.jp2</filename>
+    <channels merge="no">
+      <channel id="red" source="none" />
+      <channel id="green" source="none" />
+      <channel id="blue" source="none" />
+    </channels>
+    <scale x="0.463685" y="0.463685" />
+    <coord x="0.000000" y="0.000000" z="0.000000" />
+    <zspacing z="0.000000" slices="1" />
+  </image>
+</images>
+<!--<contour name="circular-longitudinal muscle interface of esophagus along the cut margin" color="#00FFFF" closed="false" shape="Contour">-->
+<!--  <point x="1947.01" y="-675.41" z="0.00" d="5.00" />-->
+<!--</contour>-->
+<marker type="Circle6" color="#0000A0" name="esophagogastric junction along the lesser curvature on circular-longitudinal muscle interface" varicosity="false">
+  <property name="TraceAssociation"><s>http://uri.interlex.org/base/ilx_0793101</s></property>
+  <point x="2754.17" y="-778.69" z="-1.00" d="6.97" />
+</marker>
+</mbf>
