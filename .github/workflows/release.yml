@@ -65,16 +65,10 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
 
-#      - name: Set up SSH Key
-#        uses: webfactory/ssh-agent@v0.9.0
-#        with:
-#            ssh-private-key: ${{ secrets.SPARC_TECH_LEADS_BOT_SSH_KEY }}
-
       - name: Configure git user
         run: |
           git config user.email "github-actions[bot]@github.com"
           git config user.name "GitHub Actions (run by ${{ github.actor }})"
-#          git remote set-url origin git@github.com:nih-sparc/sparc.client.git
           git remote -v
 
       - name: Check for conventional commits
