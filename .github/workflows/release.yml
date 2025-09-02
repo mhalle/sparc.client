@@ -65,10 +65,10 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
 
-      - name: Set up SSH Key
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-            ssh-private-key: ${{ secrets.SPARC_TECH_LEADS_BOT_SSH_KEY }}
+#      - name: Set up SSH Key
+#        uses: webfactory/ssh-agent@v0.9.0
+#        with:
+#            ssh-private-key: ${{ secrets.SPARC_TECH_LEADS_BOT_SSH_KEY }}
 
       - name: Configure git user
         run: |
@@ -134,8 +134,11 @@ jobs:
       - name: Commit and push CHANGELOG.md
         uses: EndBug/add-and-commit@v9
         with:
+          default_author: 'user_info'
+          author_name: 'GitHub Actions (run by ${{ github.actor }})'
+          author_email: 'github-actions[bot]@github.com'
           add: CHANGELOG.md
-          message: "chore: Update CHANGELOG.md"
+          message: 'chore: Update CHANGELOG.md'
           pull: '--rebase --autostash'
           tag: '-a ${{ github.event.inputs.version }} -m ${{ github.event.inputs.version }} --force'
           tag_push: '--force'
