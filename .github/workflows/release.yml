@@ -112,25 +112,6 @@ jobs:
 
           echo "label=$LABEL" >> $GITHUB_OUTPUT
 
-      - name: Get and save current branch protection rules
-        if: ${{ steps.check_commits.outputs.commits == '' }}
-        id: get-rules
-        env:
-          # Use the app's token for API calls
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-          BRANCH_NAME: main
-        run: |
-          # The '|| true' prevents the workflow from failing if no rules are found
-          gh api "repos/${{ github.repository }}/branches/${BRANCH_NAME}/protection" > current_protection_rules.json || true
-          
-          if [ -s current_protection_rules.json ]; then
-            echo "Existing branch protection rules saved."
-            echo "rules_exist=true" >> $GITHUB_ENV
-          else
-            echo "No existing branch protection rules found."
-            echo "rules_exist=false" >> $GITHUB_ENV
-          fi
-
       - name: Add fallback commit if no valid commits
         if: ${{ steps.check_commits.outputs.commits == '' }}
         run: |
