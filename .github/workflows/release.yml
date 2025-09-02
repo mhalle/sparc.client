@@ -74,7 +74,7 @@ jobs:
         run: |
           git config user.email "github-actions[bot]@github.com"
           git config user.name "GitHub Actions (run by ${{ github.actor }})"
-          git remote set-url origin git@github.com:nih-sparc/sparc.client.git
+#          git remote set-url origin git@github.com:nih-sparc/sparc.client.git
           git remote -v
 
       - name: Check for conventional commits
