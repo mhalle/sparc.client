@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [v0.4.1] - 2025-09-02
+### :wrench: Chores
+- [`23737e4`](https://github.com/nih-sparc/sparc.client/commit/23737e4e1d8dfc902b0b5dd10e5aa50f4a30e1dc) - [fallback commit] Full Changelog: https://github.com/nih-sparc/sparc.client/compare/v0.4.0...v0.4.1
+
+
 ## [v0.4.0] - 2025-09-01
 ### :wrench: Chores
 - [`ff28e39`](https://github.com/nih-sparc/sparc.client/commit/ff28e39e64e71f546a5ac273fdbc5f7b9690850e) - [fallback commit] Full Changelog: https://github.com/nih-sparc/sparc.client/compare/v0.3.99...v0.4.0
@@ -114,3 +119,4 @@ Alpha release of Python Sparc Client.
 [v0.3.1]: https://github.com/nih-sparc/sparc.client/compare/v0.3.0...v0.3.1
 [v0.3.99]: https://github.com/nih-sparc/sparc.client/compare/v0.3.1...v0.3.99
 [v0.4.0]: https://github.com/nih-sparc/sparc.client/compare/v0.3.99...v0.4.0
+[v0.4.1]: https://github.com/nih-sparc/sparc.client/compare/v0.4.0...v0.4.1
