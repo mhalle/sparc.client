@@ -131,35 +131,11 @@ jobs:
             echo "rules_exist=false" >> $GITHUB_ENV
           fi
 
-      - name: Disable branch protection
-        if: ${{ steps.check_commits.outputs.commits == '' }} && env.rules_exist == 'true'
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-          BRANCH_NAME: main
-        run: |
-          echo "Disabling branch protection..."
-          gh api --method DELETE "repos/${{ github.repository }}/branches/${BRANCH_NAME}/protection"
-
       - name: Add fallback commit if no valid commits
         if: ${{ steps.check_commits.outputs.commits == '' }}
         run: |
           git commit --allow-empty -m "${{ steps.label_check.outputs.label }}: [fallback commit] Full Changelog: https://github.com/nih-sparc/sparc.client/compare/${{ steps.check_commits.outputs.prev_tag }}...${{ github.event.inputs.version }}"
           git push origin main
-
-      - name: Restore branch protection
-        # This step will run even if the previous steps fail.
-        if: always() && env.rules_exist == 'true'
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-          BRANCH_NAME: main
-        run: |
-          echo "Restoring branch protection rules..."
-          jq 'del(.url, .required_pull_request_reviews.url, .required_status_checks.url, .restrictions.url, .restrictions.users_url, .restrictions.teams_url, .restrictions.apps_url)' current_protection_rules.json > protection_payload.json
-          
-          gh api \
-            --method PUT "repos/${{ github.repository }}/branches/${BRANCH_NAME}/protection" \
-            -H "Accept: application/vnd.github.v3+json" \
-            --input protection_payload.json
 
       - name: Tag commit
         uses: tvdias/github-tagger@v0.0.2
