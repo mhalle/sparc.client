@@ -49,11 +49,25 @@ def main():
     print(f"   SciCrunch key: {client4.config['development']['scicrunch_api_key']}")
     print(f"   Modules loaded: {client4.module_names}\n")
 
-    # Method 5: Minimal runtime configuration (uses defaults)
-    print("5. Minimal runtime configuration:")
-    client5 = SparcClient.from_dict({}, connect=False)
+    # Method 5: Environment-based configuration
+    print("5. Environment-based configuration:")
+    import os
+
+    # Set some example environment variables
+    os.environ["SPARC_PENNSIEVE_PROFILE"] = "env_prod"
+    os.environ["SPARC_SCICRUNCH_API_KEY"] = "env-api-key"
+
+    client5 = SparcClient.from_env(connect=False)
     print(f"   Profile: {client5.config['global']['default_profile']}")
-    print(f"   Modules loaded: {client5.module_names}")
+    print(f"   Pennsieve profile: {client5.config['default']['pennsieve_profile_name']}")
+    print(f"   SciCrunch key: {client5.config['default']['scicrunch_api_key']}")
+    print(f"   Modules loaded: {client5.module_names}\n")
+
+    # Method 6: Minimal runtime configuration (uses defaults)
+    print("6. Minimal runtime configuration:")
+    client6 = SparcClient.from_dict({}, connect=False)
+    print(f"   Profile: {client6.config['global']['default_profile']}")
+    print(f"   Modules loaded: {client6.module_names}")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,6 @@
+import os
 import os.path
+from tempfile import NamedTemporaryFile
 
 import pytest
 
@@ -155,3 +157,134 @@ def test_factory_methods_consistency(test_resources_dir):
         == client3.get_config()["global"]["default_profile"]
     )
     assert client1.module_names == client3.module_names
+
+
+# Test factory method from_env with environment variables
+def test_from_env_with_env_vars(monkeypatch):
+    # Set environment variables
+    monkeypatch.setenv("SPARC_PENNSIEVE_PROFILE", "env_profile")
+    monkeypatch.setenv("SPARC_SCICRUNCH_API_KEY", "env_api_key")
+    monkeypatch.setenv("SPARC_O2SPARC_HOST", "https://env.osparc.io")
+
+    client = SparcClient.from_env(connect=False)
+    c = client.get_config()
+
+    assert c["global"]["default_profile"] == "default"
+    assert c["default"]["pennsieve_profile_name"] == "env_profile"
+    assert c["default"]["scicrunch_api_key"] == "env_api_key"
+    assert c["default"]["o2sparc_host"] == "https://env.osparc.io"
+    assert len(client.module_names) > 0
+
+
+# Test factory method from_env with .env file
+def test_from_env_with_dotenv_file(tmp_path, monkeypatch):
+    # Clear any existing SPARC env vars
+    for key in [
+        "SPARC_PENNSIEVE_PROFILE",
+        "SPARC_SCICRUNCH_API_KEY",
+        "SPARC_O2SPARC_HOST",
+        "SPARC_O2SPARC_USERNAME",
+        "SPARC_O2SPARC_PASSWORD",
+    ]:
+        monkeypatch.delenv(key, raising=False)
+
+    # Create a temporary .env file
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "SPARC_PENNSIEVE_PROFILE=dotenv_profile\n"
+        "SPARC_SCICRUNCH_API_KEY=dotenv_api_key\n"
+        "SPARC_O2SPARC_USERNAME=dotenv_user\n"
+    )
+
+    # Change to the temporary directory
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        client = SparcClient.from_env(connect=False)
+        c = client.get_config()
+
+        assert c["global"]["default_profile"] == "default"
+        assert c["default"]["pennsieve_profile_name"] == "dotenv_profile"
+        assert c["default"]["scicrunch_api_key"] == "dotenv_api_key"
+        assert c["default"]["o2sparc_username"] == "dotenv_user"
+        assert len(client.module_names) > 0
+    finally:
+        os.chdir(original_cwd)
+
+
+# Test factory method from_env with custom dotenv path
+def test_from_env_with_custom_dotenv_path(tmp_path, monkeypatch):
+    # Clear any existing SPARC env vars
+    for key in [
+        "SPARC_PENNSIEVE_PROFILE",
+        "SPARC_SCICRUNCH_API_KEY",
+        "SPARC_O2SPARC_HOST",
+        "SPARC_O2SPARC_USERNAME",
+        "SPARC_O2SPARC_PASSWORD",
+    ]:
+        monkeypatch.delenv(key, raising=False)
+
+    # Create a custom .env file
+    custom_env = tmp_path / "custom.env"
+    custom_env.write_text(
+        "SPARC_PENNSIEVE_PROFILE=custom_profile\n" "SPARC_O2SPARC_PASSWORD=custom_password\n"
+    )
+
+    client = SparcClient.from_env(dotenv_path=str(custom_env), connect=False)
+    c = client.get_config()
+
+    assert c["global"]["default_profile"] == "default"
+    assert c["default"]["pennsieve_profile_name"] == "custom_profile"
+    assert c["default"]["o2sparc_password"] == "custom_password"
+    assert len(client.module_names) > 0
+
+
+# Test factory method from_env with no env vars or file
+def test_from_env_no_config(monkeypatch):
+    # Clear any existing SPARC env vars
+    for key in [
+        "SPARC_PENNSIEVE_PROFILE",
+        "SPARC_SCICRUNCH_API_KEY",
+        "SPARC_O2SPARC_HOST",
+        "SPARC_O2SPARC_USERNAME",
+        "SPARC_O2SPARC_PASSWORD",
+    ]:
+        monkeypatch.delenv(key, raising=False)
+
+    client = SparcClient.from_env(dotenv_path=False, connect=False)
+    c = client.get_config()
+
+    assert c["global"]["default_profile"] == "default"
+    assert c["default"]["pennsieve_profile_name"] == "pennsieve"
+    assert len(client.module_names) > 0
+
+
+# Test factory method from_env precedence (env vars override .env file)
+def test_from_env_precedence(tmp_path, monkeypatch):
+    # Clear any existing SPARC env vars first
+    for key in [
+        "SPARC_PENNSIEVE_PROFILE",
+        "SPARC_SCICRUNCH_API_KEY",
+        "SPARC_O2SPARC_HOST",
+        "SPARC_O2SPARC_USERNAME",
+        "SPARC_O2SPARC_PASSWORD",
+    ]:
+        monkeypatch.delenv(key, raising=False)
+
+    # Create .env file
+    env_file = tmp_path / ".env"
+    env_file.write_text("SPARC_PENNSIEVE_PROFILE=dotenv_profile\n")
+
+    # Set environment variable (should take precedence)
+    monkeypatch.setenv("SPARC_PENNSIEVE_PROFILE", "env_profile")
+
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        client = SparcClient.from_env(connect=False)
+        c = client.get_config()
+
+        # Environment variable should win over .env file
+        assert c["default"]["pennsieve_profile_name"] == "env_profile"
+    finally:
+        os.chdir(original_cwd)

@@ -7,6 +7,9 @@ from importlib import import_module
 from inspect import isabstract, isclass
 from pathlib import Path
 from pkgutil import iter_modules
+from typing import Optional
+
+from dotenv import load_dotenv
 
 from .services import ServiceBase
 
@@ -53,6 +56,8 @@ class SparcClient:
         Creates a SparcClient instance from a configuration file.
     from_dict(config_dict, connect):
         Creates a SparcClient instance from a configuration dictionary.
+    from_env(dotenv_path, connect):
+        Creates a SparcClient instance from environment variables and .env files.
 
     """
 
@@ -160,6 +165,62 @@ class SparcClient:
 
         instance._initialize_modules(connect)
         return instance
+
+    @classmethod
+    def from_env(cls, dotenv_path: Optional[str] = None, connect: bool = True) -> SparcClient:
+        """Create a SparcClient instance from environment variables and .env files.
+
+        Parameters:
+        -----------
+        dotenv_path : str, optional
+            Path to .env file. If None, looks for .env in current directory.
+            Set to False to skip loading any .env file.
+        connect : bool
+            Whether to connect to services after initialization.
+
+        Environment Variables:
+        ----------------------
+        SPARC_PENNSIEVE_PROFILE : str
+            Pennsieve profile name (maps to pennsieve_profile_name)
+        SPARC_SCICRUNCH_API_KEY : str
+            SciCrunch API key (maps to scicrunch_api_key)
+        SPARC_O2SPARC_HOST : str
+            O2SPARC host URL (maps to o2sparc_host)
+        SPARC_O2SPARC_USERNAME : str
+            O2SPARC username (maps to o2sparc_username)
+        SPARC_O2SPARC_PASSWORD : str
+            O2SPARC password (maps to o2sparc_password)
+
+        Returns:
+        --------
+        SparcClient
+            A configured SparcClient instance.
+        """
+        # Load .env file if specified
+        if dotenv_path is not False:
+            if dotenv_path is None:
+                dotenv_path = ".env"
+            if os.path.exists(dotenv_path):
+                load_dotenv(dotenv_path)
+
+        # Map environment variables to config keys
+        env_mapping = {
+            "SPARC_PENNSIEVE_PROFILE": "pennsieve_profile_name",
+            "SPARC_SCICRUNCH_API_KEY": "scicrunch_api_key",
+            "SPARC_O2SPARC_HOST": "o2sparc_host",
+            "SPARC_O2SPARC_USERNAME": "o2sparc_username",
+            "SPARC_O2SPARC_PASSWORD": "o2sparc_password",
+        }
+
+        # Build config dict from environment variables
+        config_dict = {}
+        for env_var, config_key in env_mapping.items():
+            value = os.environ.get(env_var)
+            if value is not None:
+                config_dict[config_key] = value
+
+        # Use from_dict to create the instance (handles defaults properly)
+        return cls.from_dict(config_dict, connect=connect)
 
     def add_module(
         self,
