@@ -40,7 +40,8 @@ jobs:
 
     - name: Setup OpenGL
       run: |
-          sudo apt-get install libosmesa6 libglu1-mesa
+          sudo apt-get update
+          sudo apt-get install -y libosmesa6 libglu1-mesa
 
     - name: Install dependencies
       run: |
